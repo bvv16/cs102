@@ -1,118 +1,154 @@
 import pygame
-from pygame.locals import *
 import random
+from pygame.locals import *
+from array import *
 
+class GameOfLife():
 
-class GameOfLife:
-    """ Класс для работы с полем и выведением его на экран"""
+	def __init__(self, width: int=640, height: int=480, cell_size: int=10, speed: int=10) -> None:
+		self.width = width
+		self.height = height
+		self.cell_size = cell_size
 
-    def __init__(self, width: int = 640, height: int = 480, cell_size: int = 10, speed: int = 10) -> None:
-        self.width = width
-        self.height = height
-        self.cell_size = cell_size
+		# Устанавливаем размер окна
+		self.screen_size = width, height
+		# Создание нового окна
+		self.screen = pygame.display.set_mode(self.screen_size)
 
-        # Устанавливаем размер окна
-        self.screen_size = width, height
-        # Создание нового окна
-        self.screen = pygame.display.set_mode(self.screen_size)
+		# Вычисляем количество ячеек по вертикали и горизонтали
+		self.cell_width = self.width // self.cell_size
+		self.cell_height = self.height // self.cell_size
 
-        # Вычисляем количество ячеек по вертикали и горизонтали
-        self.cell_width = self.width // self.cell_size
-        self.cell_height = self.height // self.cell_size
+		# Скорость протекания игры
+		self.speed = speed
 
-        # Скорость протекания игры
-        self.speed = speed
+	def draw_lines(self) -> None:
+		# @see: http://www.pygame.org/docs/ref/draw.html#pygame.draw.line
+		for x in range(0, self.width, self.cell_size):
+			pygame.draw.line(self.screen, pygame.Color('black'),
+			(x, 0), (x, self.height))
+		for y in range(0, self.height, self.cell_size):
+			pygame.draw.line(self.screen, pygame.Color('black'),
+			(0, y), (self.width, y))
 
-    def draw_grid(self) -> None:
-        # http://www.pygame.org/docs/ref/draw.html#pygame.draw.line
-        for x in range(0, self.width, self.cell_size):
-            pygame.draw.line(self.screen, pygame.Color('black'), (x, 0), (x, self.height))
-        for y in range(0, self.height, self.cell_size):
-            pygame.draw.line(self.screen, pygame.Color('black'), (0, y), (self.width, y))
+	def run(self) -> None:
+		pygame.init()
+		clock = pygame.time.Clock()
+		pygame.display.set_caption('Game of Life')
+		self.screen.fill(pygame.Color('white'))
+		running = True
+		# первый массив генерируем со случайным разбросом точек
+		ar = self.create_grid (True)
+		while running:
+			for event in pygame.event.get():
+				if event.type == QUIT:
+					running = False
+			# рисуем сетку
+			self.draw_lines()
+			# рисуем закраску для массива ar
+			self.draw_grid (ar)
+			pygame.display.flip()
+			clock.tick(self.speed)
+			# создаем новый пустой массив для следующего поколения
+			nar = self.create_grid (False)
+			# заполняем следующее поколение
+			self.fill_next_generation (ar, nar)
+			# это текущий массив теперь
+			ar = nar
+		pygame.quit()
 
-    def run(self) -> None:
-        pygame.init()
-        clock = pygame.time.Clock()
-        pygame.display.set_caption('Game of Life')
-        self.screen.fill(pygame.Color('white'))
-        clist = self.cell_list()
-        running = True
-        while running:
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    running = False
+	def create_grid(self, randomize: bool=False) -> []:
+		g = []
+		for x in range(0, self.cell_width):
+			gg = []
+			for y in range(0, self.cell_height):
+				c = False
+				if randomize:
+					# массив состоит из bool - есть или нет точки
+					c = random.randint (0, 1) > 0
+				gg.append (c)
+			g.append (gg)
+		return g
 
-            self.draw_cell_list(clist)
-            self.draw_grid()
-            clist = self.update_cell_list(clist)
-            # Отрисовка списка клеток
-            # Выполнение одного шага игры (обновление состояния ячеек)
-            # PUT YOUR CODE HERE
-            pygame.display.flip()
-            clock.tick(self.speed)
-        pygame.quit()
+	# эта процедура заполняет из исходного массива точек - второй массив со следующим поколением
+	# ar - исходный двумерный массив с точками
+	# nar - пустой массив для следующего поколения
+	def fill_next_generation (self, ar: [], nar: []) -> None:
+		for x in range(0, self.cell_width):
+			# бежим по ширине
+			gg = ar [x]
+			# gg здесь уже одомерный массив по всем точкам высоты для ширины x
+			for y in range(0, self.cell_height):
+				# подсчитывание соседей для точки происходит в отдельной функции
+				c = self.get_neighbours (ar, x, y)
+				#print (x, y, c)
+				if gg [y]:
+					# если точка была, и вокруг 2-3 соседа - она остается, иначе исчезает
+					if c == 2 or c == 3:
+						nar [x][y] = True
+				else:
+					# а если точки не было, но вокруг 3 соседа - то точка появляется
+					if c == 3:
+						nar [x][y] = True
 
-    def cell_list(self, randomize: bool = True) -> list:
-        """ Создание списка клеток.
-        :randomize: Если True, то создается список клеток, где
-        каждая клетка равновероятно может быть живой (1) или мертвой (0).
-        :return: Список клеток, представленный в виде матрицы
-        """
-        if not randomize:
-            self.clist = [[0 for col in range(self.cell_width)]
-                          for row in range(self.cell_height)]
-        else:
-            self.clist = [[random.randint(0, 1) for col in range(self.cell_width)]
-                          for row in range(self.cell_height)]
-        return self.clist
+	# это процедура рисования массива с точками - там где в ячейке есть точка - будет закрашена клетка синим
+	def draw_grid(self, ar: []) -> None:
+		for x in range(0, self.cell_width):
+			# бежим по ширине
+			gg = ar [x]
+			# gg здесь уже одомерный массив по всем точкам высоты для ширины x
+			for y in range(0, self.cell_height):
+				c = pygame.Color('white')
+				if gg [y]:
+					c = pygame.Color('blue')
+					# там где в ячейке есть точка - будет закрашена клетка синим
+				# закрашивание белым или синим прямоугольника с учетом ширины и высоты в пикселях
+				self.screen.fill (c, Rect (x * self.cell_size + 1, y * self.cell_size + 1, self.cell_size-1, self.cell_size-1), 0)
 
-    def draw_cell_list(self, clist: list) -> None:
-        """
-        Отображение списка клеток 'rects' с закрашиванием их в
-        соответствующие цвета
-        """
-        for rown, row in enumerate(self.clist):
-            for coln, col in enumerate(row):
-                if col == 1:
-                    pygame.draw.rect(self.screen, pygame.Color('green'),
-                                     (coln * self.cell_size, rown * self.cell_size, self.cell_size, self.cell_size))
-                else:
-                    pygame.draw.rect(self.screen, pygame.Color('black'),
-                                     (coln * self.cell_size, rown * self.cell_size, self.cell_size, self.cell_size))
+	# подсчет соседей в массиве ar для точки с координатами (x,y)
+	def get_neighbours (self, ar: [], x: int, y:int) -> int:
+		c = 0
+		gg = ar [x]
+		# last_y ограничение по вертикали при подсчете соседей для тех случаев, когда мы считаем для крайней НИЖНЕЙ точки, последней
+		last_y = y + 2
+		# first_y ограничение по вертикали при подсчете соседей для тех случаев, когда мы считаем для крайней ВЕРХНЕЙ точки, первой
+		first_y = y - 1
+		#print (x, ' ', y, ' ', last_y, ' ', self.cell_width, ' ', self.cell_height)
 
-    def get_neighbours(self, cell: tuple) -> list:
-        """
-        Вернуть список соседних клеток для клетки cell.
-        Соседними считаются клетки по горизонтали,
-        вертикали и диагоналям, то есть во всех
-        направлениях.
-        """
-        neighbours = []
-        row, col = cell
-        neighbours_positions = [(row - 1, col - 1), (row, col - 1), (row + 1, col - 1), (row - 1, col), (row + 1, col),
-                                (row - 1, col + 1), (row, col + 1), (row + 1, col + 1)]
-        for neighbour_pos in neighbours_positions:
-            row, col = neighbour_pos
-            if -1 < row < self.cell_height and -1 < col < self.cell_width:
-                neighbours.append(self.clist[row][col])
-        return neighbours
+		if y > 0:
+			# если строка сверху есть, то считаем наличие точки НАД нами
+			if gg [y-1]:
+				c = c + 1
+		else:
+			# а иначе вот тут мы верхнее ограничение ставиим на 0 - (то есть на первую строчку) чтобы не считать строчку под номером -1
+			first_y = 0
 
-    def update_cell_list(self, cell_list: list) -> list:
-        """
-        Обновление состояния клеток
-        Возвращает обновленное игровое поле
-        """
-        new_clist = [[0 for col in range(self.cell_width)] for row in range(self.cell_height)]
-        for rown, row in enumerate(cell_list):
-            for coln, col in enumerate(row):
-                neighbours = self.get_neighbours((rown, coln))
-                neighbours_num = neighbours.count(1)
-                if neighbours_num == 3 or (neighbours_num == 2 and col == 1):
-                    new_clist[rown][coln] = 1
-        self.clist = new_clist
-        return self.clist
+		if y < self.cell_height-1:
+			# если строка снизу есть, то считаем наличие точки ПОД нами
+			if gg [y+1]:
+				c = c + 1
+		else:
+			# а иначе вот тут мы нижнее ограничение ставиим на количество строк - (то есть на последнюю строчку) чтобы не считать строчку под номером self.cell_height
+			last_y = self.cell_height
+
+		# если столбец СЛЕВА не выходит за ограничения массива, то считаем всех соседей слева в диапазоне (first_y, last_y)
+		if x > 0:
+			gg = ar [x-1]
+			for z in range(first_y, last_y):
+				if gg [z]:
+					c = c + 1
+
+		# если столбец СПРАВА не выходит за ограничения массива, то считаем всех соседей справа в диапазоне (first_y, last_y)
+		if x < self.cell_width-1:
+			gg = ar [x+1]
+			for z in range(first_y, last_y):
+				if gg [z]:
+					c = c + 1
+
+		return c
 
 
 if __name__ == '__main__':
-    game = GameOfLife(400, 400, 3)
+    game = GameOfLife(640, 480, 20)
     game.run()
+
